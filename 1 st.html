@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="mr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Balmitra Pro | Innovision Tech</title>
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+
+    <style>
+        :root { --primary: #4338ca; --success: #059669; --bg: #f5f3ff; }
+        body { font-family: 'Poppins', sans-serif; background: var(--bg); margin: 0; text-align: center; }
+        .glass-card { background: white; border-radius: 30px; padding: 40px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15); max-width: 550px; margin: 50px auto; border: 4px solid white; }
+        .btn { background: var(--primary); color: white; border: none; padding: 18px 30px; border-radius: 15px; font-size: 1.2rem; cursor: pointer; width: 100%; font-weight: bold; margin-bottom: 10px; }
+        .option-btn { background: #fff; border: 2px solid #e2e8f0; padding: 18px; margin: 10px 0; width: 100%; border-radius: 20px; font-size: 1.3rem; cursor: pointer; transition: 0.2s; }
+        .option-btn:hover { background: #f0f7ff; border-color: var(--primary); }
+        .score-badge { font-size: 1.5rem; color: #f59e0b; font-weight: bold; margin-bottom: 10px; }
+        .replay-btn { background: #facc15; color: #000; border: none; padding: 10px 20px; border-radius: 50px; font-weight: bold; cursor: pointer; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="glass-card" id="start-screen">
+    <h1 style="color:var(--primary);">नमस्ते बालमित्रांनो! 👋</h1>
+    <input type="text" id="user-name" placeholder="तुमचे नाव येथे लिहा" style="width:90%; padding:15px; font-size:1.2rem; border-radius:15px; border:2px solid #ddd; margin-bottom:20px;">
+    <button class="btn" onclick="initApp()">खेळ सुरू करा 🎮</button>
+</div>
+
+<div class="glass-card" id="quiz-screen" style="display:none">
+    <div class="score-badge">⭐ स्कोअर: <span id="current-score">0</span></div>
+    
+    <button class="replay-btn" onclick="speakQuestion()">🔊 प्रश्न पुन्हा ऐका</button>
+
+    <h2 id="q-text" style="font-size: 1.8rem; margin-bottom: 20px;"></h2>
+    <div id="options-box"></div>
+</div>
+
+<audio id="snd-correct" src="https://www.myinstants.com/media/sounds/correct.mp3"></audio>
+<audio id="snd-wrong" src="https://www.myinstants.com/media/sounds/wrong-answer-sound-effect.mp3"></audio>
+
+<script>
+    // तुमचे Config
+    const firebaseConfig = {
+        apiKey: "AIzaSyCCG1h1pjTwRu4MId6E-74BytXkkvreo-k",
+        authDomain: "st-f5c84.firebaseapp.com",
+        projectId: "st-f5c84",
+        storageBucket: "st-f5c84.firebasestorage.app",
+        messagingSenderId: "978296655274",
+        appId: "1:978296655274:web:02f49f892eedfad90f6fd3"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // १०० प्रश्नांची पूर्ण यादी (येथे नमुन्यासाठी १० दिले आहेत, तुम्ही पूर्ण यादी जोडा)
+    const questions = [
+    // --- विभाग १: मराठी अक्षर व शब्द ओळख (१ ते २५) ---
+    {q: "१. 'अ' नंतर येणारे अक्षर कोणते?", o: ["आ", "इ", "उ"], a: "आ"},
+    {q: "२. 'कमळ' या शब्दाचे पहिले अक्षर काय?", o: ["क", "म", "ळ"], a: "क"},
+    {q: "३. 'छ' पासून काय तयार होते?", o: ["झाड", "छत्री", "बादली"], a: "छत्री"},
+    {q: "४. 'ग' अक्षरापासून सुरू होणारा देव कोणता?", o: ["गणपती", "शंकर", "विष्णू"], a: "गणपती"},
+    {q: "५. फळांचा राजा कोण आहे?", o: ["आंबा", "पेरू", "केळी"], a: "आंबा"},
+    {q: "६. 'झ' पासून काय येते?", o: ["झाड", "झबले", "टपाल"], a: "झबले"},
+    {q: "७. 'ब' पासून पाण्यात पोहणारा पक्षी कोणता?", o: ["बदक", "कावळा", "चिमणी"], a: "बदक"},
+    {q: "८. 'म' पासून आपला राष्ट्रीय पक्षी कोणता?", o: ["मैना", "मोर", "पोपट"], a: "मोर"},
+    {q: "९. 'ह' पासून जंगलातील मोठा प्राणी कोणता?", o: ["हत्ती", "वाघ", "सिंह"], a: "हत्ती"},
+    {q: "१०. 'घ' पासून आपण कुठे राहतो?", o: ["घर", "मठ", "वाडा"], a: "घर"},
+    {q: "११. 'न' पासून पाणी कशातून येते?", o: ["नल", "नळ", "नदी"], a: "नळ"},
+    {q: "१२. 'प' पासून आकाशात काय उडतो?", o: ["पतंग", "पाटी", "पेन"], a: "पतंग"},
+    {q: "१३. 'फ' पासून काय मिळते?", o: ["फळ", "फूल", "पान"], a: "फळ"},
+    {q: "१४. 'ब' पासून आपण कशाने खेळतो?", o: ["बॅट", "बॉल", "बाहुली"], a: "बॉल"},
+    {q: "१५. 'य' पासून काय होते?", o: ["यज्ञ", "रथ", "लसूण"], a: "यज्ञ"},
+    {q: "१६. 'र' पासून कशावर बसून राजा येतो?", o: ["रथ", "बस", "रिक्षा"], a: "रथ"},
+    {q: "१७. 'व' पासून थंड हवा कशाने मिळते?", o: ["वाहन", "वारा", "वीज"], a: "वारा"},
+    {q: "१८. 'श' पासून काय मिळते?", o: ["शहाळे", "शेंगदाणा", "शेव"], a: "शहाळे"},
+    {q: "१९. 'स' पासून वेगाने धावणारा प्राणी कोणता?", o: ["ससा", "कासव", "उंदीर"], a: "ससा"},
+    {q: "२०. 'क्ष' पासून काय बनते?", o: ["क्षत्रिय", "क्षय", "क्षण"], a: "क्षत्रिय"},
+    {q: "२१. 'ज्ञ' कशात येतो?", o: ["ज्ञान", "ज्ञानी", "यज्ञ"], a: "ज्ञान"},
+    {q: "२२. 'त्र' कशात येतो?", o: ["पत्र", "मित्र", "त्रिकोण"], a: "त्रिकोण"},
+    {q: "२३. 'ई' पासून काय बनते?", o: ["इमारत", "इस्त्री", "ईद"], a: "ईद"},
+    {q: "२४. 'ओ' पासून काय बनते?", o: ["ओठ", "ओढा", "ओझे"], a: "ओठ"},
+    {q: "२५. 'ऋ' पासून काय बनते?", o: ["ऋषी", "ऋतू", "ऋण"], a: "ऋषी"},
+
+    // --- विभाग २: अंक आणि गणित (२६ ते ५०) ---
+    {q: "२६. १ + १ किती होतात?", o: ["१", "२", "३"], a: "२"},
+    {q: "२७. ५ च्या आधी कोणता अंक येतो?", o: ["४", "६", "३"], a: "४"},
+    {q: "२८. ३ + २ किती होतात?", o: ["४", "५", "६"], a: "५"},
+    {q: "२९. ७ नंतर कोणता अंक येतो?", o: ["६", "८", "९"], a: "८"},
+    {q: "३०. त्रिकोणाला किती कोपरे असतात?", o: ["२", "३", "४"], a: "३"},
+    {q: "३१. चेंडूचा आकार कसा असतो?", o: ["गोल", "चौकोनी", "त्रिकोणी"], a: "गोल"},
+    {q: "३२. ४ + ४ किती होतात?", o: ["७", "८", "९"], a: "८"},
+    {q: "३३. १० च्या नंतर काय येते?", o: ["९", "११", "१२"], a: "११"},
+    {q: "३४. ५ आणि ५ किती होतात?", o: ["९", "१०", "११"], a: "१०"},
+    {q: "३५. एका हाताला किती बोटे असतात?", o: ["४", "५", "६"], a: "५"},
+    {q: "३६. २ - १ किती उरतात?", o: ["०", "१", "२"], a: "१"},
+    {q: "३७. ६ आणि २ किती होतात?", o: ["७", "८", "९"], a: "८"},
+    {q: "३८. ९ च्या आधी काय येते?", o: ["७", "८", "१०"], a: "८"},
+    {q: "३९. शून्याला काही किंमत असते का?", o: ["हो", "नाही", "माहित नाही"], a: "नाही"},
+    {q: "४०. ८ मधून २ गेले तर किती उरतात?", o: ["५", "६", "७"], a: "६"},
+    {q: "४१. ७ आणि ३ किती होतात?", o: ["९", "१०", "११"], a: "१०"},
+    {q: "४२. १ ते १० मध्ये सर्वात मोठा अंक कोणता?", o: ["९", "५", "१०"], a: "१०"},
+    {q: "४३. २ + ३ + १ किती होतात?", o: ["५", "६", "७"], a: "६"},
+    {q: "४४. ५ मधून ५ गेले तर काय उरते?", o: ["०", "१", "५"], a: "०"},
+    {q: "४५. पाटीचा आकार कसा असतो?", o: ["गोल", "त्रिकोणी", "चौकोनी"], a: "चौकोनी"},
+    {q: "४६. २ च्या पाढ्यात २ नंतर काय येते?", o: ["३", "४", "५"], a: "४"},
+    {q: "४७. ९ + १ किती होतात?", o: ["१०", "११", "९"], a: "१०"},
+    {q: "४८. ४ च्या आधी काय येते?", o: ["२", "३", "५"], a: "३"},
+    {q: "४९. ३ + ३ किती होतात?", o: ["५", "६", "७"], a: "६"},
+    {q: "५०. १० मधून २ गेले तर किती उरतात?", o: ["७", "८", "९"], a: "८"},
+
+    // --- विभाग ३: इंग्रजी मुळाक्षरे (५१ ते ७५) ---
+    {q: "५१. A for काय येते?", o: ["Apple", "Ball", "Cat"], a: "Apple"},
+    {q: "५२. B नंतर काय येते?", o: ["A", "C", "D"], a: "C"},
+    {q: "५३. Dog कोणत्या अक्षरापासून सुरू होतो?", o: ["C", "D", "E"], a: "D"},
+    {q: "५४. Elephant कोणत्या अक्षराने सुरू होतो?", o: ["E", "F", "G"], a: "E"},
+    {q: "५५. Fish कुठे राहते?", o: ["Water", "Land", "Air"], a: "Water"},
+    {q: "५६. G for काय येते?", o: ["Grapes", "Hat", "Ice"], a: "Grapes"},
+    {q: "५७. Hat आपण कुठे घालतो?", o: ["Hand", "Head", "Leg"], a: "Head"},
+    {q: "५८. Ice कसा असतो?", o: ["Hot", "Cold", "Warm"], a: "Cold"},
+    {q: "५९. Joker कुठे असतो?", o: ["School", "Circus", "Home"], a: "Circus"},
+    {q: "६०. Kite म्हणजे काय?", o: ["चेंडू", "पतंग", "गाडी"], a: "पतंग"},
+    {q: "६१. Lion म्हणजे काय?", o: ["वाघ", "सिंह", "हत्ती"], a: "सिंह"},
+    {q: "६२. Moon कधी दिसतो?", o: ["Day", "Night", "Evening"], a: "Night"},
+    {q: "६३. Nest म्हणजे काय?", o: ["घर", "घरटे", "झाड"], a: "घरटे"},
+    {q: "६४. Orange चा रंग कोणता?", o: ["Red", "Orange", "Blue"], a: "Orange"},
+    {q: "६५. Parrot चा रंग कोणता?", o: ["Green", "Black", "White"], a: "Green"},
+    {q: "६६. Queen म्हणजे काय?", o: ["राजा", "राणी", "मंत्री"], a: "राणी"},
+    {q: "६७. Rose म्हणजे काय?", o: ["कमळ", "गुलाब", "चाफा"], a: "गुलाब"},
+    {q: "६८. Sun आपल्याला काय देतो?", o: ["Water", "Light", "Food"], a: "Light"},
+    {q: "६९. Tiger आपला काय आहे?", o: ["National Bird", "National Animal", "Pet"], a: "National Animal"},
+    {q: "७०. Umbrella कधी वापरतात?", o: ["Rainy Season", "Winter", "Summer"], a: "Rainy Season"},
+    {q: "७१. Van ला किती चाके असतात?", o: ["२", "३", "४"], a: "४"},
+    {q: "७२. Watch कशासाठी वापरतात?", o: ["Time", "Food", "Play"], a: "Time"},
+    {q: "७३. X-mas कधी असतो?", o: ["December", "January", "March"], a: "December"},
+    {q: "७४. Yacht कुठे चालते?", o: ["Road", "Water", "Sky"], a: "Water"},
+    {q: "७५. Zebra चा रंग कोणता असतो?", o: ["Red-Blue", "Black-White", "Green"], a: "Black-White"},
+
+    // --- विभाग ४: सामान्य ज्ञान व परिसर (७६ ते १००) ---
+    {q: "७६. आपला देश कोणता?", o: ["महाराष्ट्र", "भारत", "अमेरिका"], a: "भारत"},
+    {q: "७७. जंगलाचा राजा कोण?", o: ["वाघ", "सिंह", "हत्ती"], a: "सिंह"},
+    {q: "७८. दुधाचा रंग कोणता असतो?", o: ["पांढरा", "पिवळा", "लाल"], a: "पांढरा"},
+    {q: "७९. सूर्य कोणत्या दिशेला उगवतो?", o: ["पश्चिम", "दक्षिण", "पूर्व"], a: "पूर्व"},
+    {q: "८०. ट्रॅफिक सिग्नलचा कोणता रंग 'थांबा' सांगतो?", o: ["हिरवा", "लाल", "पिवळा"], a: "लाल"},
+    {q: "८१. आपण कशाने श्वास घेतो?", o: ["कान", "नाक", "डोळे"], a: "नाक"},
+    {q: "८२. चवीसाठी आपण काय वापरतो?", o: ["जीभ", "दांत", "ओठ"], a: "जीभ"},
+    {q: "८३. पक्षी कशाने उडतात?", o: ["पाय", "पंख", "चोच"], a: "पंख"},
+    {q: "८४. मासा कुठे राहतो?", o: ["पाण्यात", "जमिनीत", "बिळात"], a: "पाण्यात"},
+    {q: "८५. साखरेची चव कशी असते?", o: ["कडू", "गोड", "आंबट"], a: "गोड"},
+    {q: "८६. आपण कशाने पाहतो?", o: ["कान", "नाक", "डोळे"], a: "डोळे"},
+    {q: "८७. आपण कशाने ऐकतो?", o: ["कान", "नाक", "डोळे"], a: "कान"},
+    {q: "८८. आपली राष्ट्रभाषा कोणती?", o: ["मराठी", "हिंदी", "इंग्रजी"], a: "हिंदी"},
+    {q: "८९. राष्ट्रध्वजात किती रंग आहेत?", o: ["२", "३", "४"], a: "३"},
+    {q: "९०. गाईला किती पाय असतात?", o: ["२", "३", "४"], a: "४"},
+    {q: "९१. केळीचा रंग कोणता?", o: ["लाल", "पिवळा", "निळा"], a: "पिवळा"},
+    {q: "९२. मिठाची चव कशी असते?", o: ["गोड", "खारट", "कडू"], a: "खारट"},
+    {q: "९३. झाडाला पाने कोणत्या रंगाची असतात?", o: ["लाल", "हिरवी", "काळी"], a: "हिरवी"},
+    {q: "९४. थंडीमध्ये आपण काय घालतो?", o: ["स्वेटर", "रेनकोट", "धोतर"], a: "स्वेटर"},
+    {q: "९५. आगगाडी कशी चालते?", o: ["रस्त्यावर", "रुळावर", "पाण्यात"], a: "रुळावर"},
+    {q: "९६. पोस्टमन काय आणतो?", o: ["दूध", "पत्र", "भाजी"], a: "पत्र"},
+    {q: "९७. कोळी काय विणतो?", o: ["घर", "जाळे", "घरटे"], a: "जाळे"},
+    {q: "९८. कापूस कसा असतो?", o: ["मऊ", "कडक", "जड"], a: "मऊ"},
+    {q: "९९. आपली आईची आई कोण असते?", o: ["आजी", "काकी", "मावशी"], a: "आजी"},
+    {q: "१००. चॉकलेट कसे लागते?", o: ["कडू", "तिखट", "गोड"], a: "गोड"}
+];
+    let current = 0, score = 0, userName = "";
+
+    function initApp() {
+        userName = document.getElementById('user-name').value;
+        if(!userName) { alert("नाव टाका!"); return; }
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('quiz-screen').style.display = 'block';
+        loadNext();
+    }
+
+    function loadNext() {
+        if(current >= questions.length) { finish(); return; }
+        
+        const qData = questions[current];
+        document.getElementById('q-text').innerText = qData.q;
+        
+        // प्रश्न आणि पर्याय वाचणे
+        speakQuestion();
+
+        const box = document.getElementById('options-box');
+        box.innerHTML = "";
+        qData.o.forEach(opt => {
+            const b = document.createElement('button');
+            b.className = 'option-btn';
+            b.innerText = opt;
+            b.onclick = () => checkAns(opt);
+            box.appendChild(b);
+        });
+    }
+
+   // --- मराठी आवाज फिक्स करण्यासाठी नवीन लॉजिक ---
+let marathiVoice = null;
+
+function loadVoices() {
+    let voices = window.speechSynthesis.getVoices();
+    
+    // १. नेमका मराठी (mr-IN) आवाज शोधणे
+    marathiVoice = voices.find(v => v.lang === 'mr-IN' || v.lang === 'mr_IN');
+
+    // २. जर वरील सापडला नाही, तर नावात 'Marathi' असलेले शोधणे
+    if (!marathiVoice) {
+        marathiVoice = voices.find(v => v.name.toLowerCase().includes('marathi'));
+    }
+
+    // ३. जर तरीही नसेल, तर हिंदी (hi-IN) वापरणे जे मराठीला जवळचे आहे
+    if (!marathiVoice) {
+        marathiVoice = voices.find(v => v.lang === 'hi-IN');
+    }
+}
+
+// आवाज लोड होण्यासाठी हा इव्हेंट महत्त्वाचा आहे
+window.speechSynthesis.onvoiceschanged = loadVoices;
+loadVoices();
+
+function speakQuestion() {
+    window.speechSynthesis.cancel(); // जुने बोलणे थांबवा
+    
+    const qData = questions[current];
+    const textToSpeak = `${qData.q}. पर्याय आहेत. १. ${qData.o[0]}. २. ${qData.o[1]}. ३. ${qData.o[2]}.`;
+    
+    const msg = new SpeechSynthesisUtterance(textToSpeak);
+    
+    // आवाज सेट करणे
+    if (marathiVoice) {
+        msg.voice = marathiVoice;
+    }
+    
+    msg.lang = 'mr-IN'; // लँग्वेज कोड सक्तीने मराठी ठेवणे
+    msg.rate = 0.8;      // लहान मुलांसाठी सावकाश बोलणे
+    msg.pitch = 1;       // नैसर्गिक आवाज
+    
+    window.speechSynthesis.speak(msg);
+}
+// ------------------------------------------
+
+    function checkAns(sel) {
+        window.speechSynthesis.cancel(); // उत्तर दिल्यावर बोलणे थांबवा
+        if(sel === questions[current].a) {
+            score += 10;
+            document.getElementById('current-score').innerText = score;
+            document.getElementById('snd-correct').play();
+            confetti({ particleCount: 40, spread: 50 });
+        } else {
+            document.getElementById('snd-wrong').play();
+        }
+        current++;
+        setTimeout(loadNext, 1200);
+    }
+
+    function finish() {
+        database.ref('scores/' + Date.now()).set({ name: userName, total: score });
+        document.getElementById('quiz-screen').innerHTML = `
+            <h2 style="color:var(--success)">अभिनंदन, ${userName}! 🎉</h2>
+            <p style="font-size:1.5rem">तुमचा स्कोअर: ${score}</p>
+            <button class="btn" onclick="location.reload()">परत जा</button>
+        `;
+        confetti({ particleCount: 200, spread: 100 });
+    }
+</script>
+</body>
+</html>
